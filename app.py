@@ -60,12 +60,15 @@ if uploaded_schedule and uploaded_pax_db:
     # Transit and Pax merge
     df_Departure["Transit Time"] = df_Arrival["Transit Time"] = 21.7
 
-    for data in [df_Arrival, df_Departure]:
-        data["Flight No."] = data["Flight No."].astype(str)
-        data.merge(PDB[["Row Labels", "Total Pax"]], 
-                   left_on="Flight No.", right_on="Row Labels", how="left")
-        data.drop(columns="Row Labels", errors='ignore', inplace=True)
-        data.rename(columns={"Total Pax": "PAX"}, inplace=True)
+    df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]],
+                               left_on="Flight No.", right_on="Row Labels", how="left")
+    df_Arrival.drop(columns="Row Labels", inplace=True)
+    df_Arrival.rename(columns={"Total Pax": "PAX"}, inplace=True)
+
+    df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]],
+                                  left_on="Flight No.", right_on="Row Labels", how="left")
+    df_Departure.drop(columns="Row Labels", inplace=True)
+    df_Departure.rename(columns={"Total Pax": "PAX"}, inplace=True)
 
     # Setup arrival dataframe
     A = df_Arrival.copy()
