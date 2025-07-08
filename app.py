@@ -31,116 +31,125 @@ if uploaded_schedule and uploaded_pax_db:
     PDB = pd.read_excel(uploaded_pax_db)
 
     df_Arrival = df[["Flight No.", "Gate Start Time", "Gate End Time", "Stand", "Terminal", "Seats"]]
-    df_Departure = df[["Flight No..1", "Gate Start Time.1", "Gate End Time.1", "Stand.1", "Terminal.1", "Seats.1"]]
-    df_Departure = df_Departure.rename(columns={
-        "Flight No..1": "Flight No.", "Gate Start Time.1": "Gate Start Time", 
-        "Gate End Time.1": "Gate End Time", "Stand.1": "Stand", 
-        "Terminal.1": "Terminal", "Seats.1": "Seats"
-    })
+df_Departure = df[["Flight No..1", "Gate Start Time.1", "Gate End Time.1", "Stand.1", "Terminal.1", "Seats.1"]]
+df_Departure = df_Departure.rename(columns={"Flight No..1" : "Flight No.", "Gate Start Time.1" : "Gate Start Time", "Gate End Time.1" : "Gate End Time", "Stand.1" : "Stand", "Terminal.1" : "Terminal", "Seats.1" : "Seats"})
 
-    def insert_zeros(flight_no):
-        if isinstance(flight_no, str):
-            if len(flight_no) == 3:
-                return flight_no[:2] + "00" + flight_no[2:]
-            elif len(flight_no) == 4:
-                return flight_no[:2] + "0" + flight_no[2:]
-        return flight_no
+def insert_zeros(flight_no):
+    if isinstance(flight_no, str):
+        if len(flight_no) == 3:
+            return flight_no[:2] + "00" + flight_no[2:]
+        elif len(flight_no) == 4:
+            return flight_no[:2] + "0" + flight_no[2:]
+    return flight_no
 
-    df_Arrival["Flight No."] = df_Arrival["Flight No."].apply(insert_zeros)
-    df_Departure["Flight No."] = df_Departure["Flight No."].apply(insert_zeros)
+df_Arrival["Flight No."] = df_Arrival["Flight No."].apply(insert_zeros)
+df_Departure["Flight No."] = df_Departure["Flight No."].apply(insert_zeros)
 
-    # Filter Remote and International
-    df_Arrival = df_Arrival[df_Arrival["Stand"].str.contains("Remote", na=False)]
-    df_Arrival = df_Arrival[df_Arrival["Terminal"].str.contains("International", na=False)]
-    df_Arrival = df_Arrival[df_Arrival["Seats"] != 0]
+df_Arrival = df_Arrival[df_Arrival["Stand"].str.contains("Remote", na=False)]
+df_Arrival = df_Arrival[df_Arrival["Terminal"].str.contains("International", na=False)]
+df_Arrival = df_Arrival[df_Arrival["Seats"] != 0]
+df_Departure = df_Departure[df_Departure["Stand"].str.contains("Remote", na=False)]
+df_Departure = df_Departure[df_Departure["Terminal"].str.contains("International", na=False)]
+df_Departure = df_Departure[df_Departure["Seats"] != 0]
 
-    df_Departure = df_Departure[df_Departure["Stand"].str.contains("Remote", na=False)]
-    df_Departure = df_Departure[df_Departure["Terminal"].str.contains("International", na=False)]
-    df_Departure = df_Departure[df_Departure["Seats"] != 0]
+df_Departure["Transit Time"] = 21.7
+df_Arrival["Transit Time"] = 21.7
 
-    # Transit and Pax merge
-    df_Departure["Transit Time"] = df_Arrival["Transit Time"] = 21.7
+df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+df_Arrival = df_Arrival.drop(columns="Row Labels")
+df_Arrival = df_Arrival.rename(columns={"Total Pax": "PAX"})
 
-    df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]],
-                               left_on="Flight No.", right_on="Row Labels", how="left")
-    df_Arrival.drop(columns="Row Labels", inplace=True)
-    df_Arrival.rename(columns={"Total Pax": "PAX"}, inplace=True)
+df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+df_Departure = df_Departure.drop(columns="Row Labels")
+df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
 
-    df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]],
-                                  left_on="Flight No.", right_on="Row Labels", how="left")
-    df_Departure.drop(columns="Row Labels", inplace=True)
-    df_Departure.rename(columns={"Total Pax": "PAX"}, inplace=True)
+# Arrival
+Arrival = df_Arrival
+Arrival['Trips_Needed'] = np.ceil(Arrival['PAX'] / BUS_CAPACITY)
+Arrival['Gate Start Time'] = pd.to_datetime(Arrival['Gate Start Time'], format='%d/%m/%Y %H:%M')
+Arrival['Gate End Time'] = pd.to_datetime(Arrival['Gate End Time'], format='%d/%m/%Y %H:%M')
+Arrival['Transit Time'] = pd.to_numeric(Arrival['Transit Time'])
 
-    # Setup arrival dataframe
-    A = df_Arrival.copy()
-    A['Trips_Needed'] = np.ceil(A['PAX'] / BUS_CAPACITY)
-    A['Gate Start Time'] = pd.to_datetime(A['Gate Start Time'], errors='coerce')
-    A['Gate End Time'] = pd.to_datetime(A['Gate End Time'], errors='coerce')
-    A['Transit Time'] = pd.to_numeric(A['Transit Time'])
-    max_trips_A = Arrival_TimeFrame // A['Transit Time']
-    A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / max_trips_A)
+max_trips_A = Arrival_TimeFrame // Arrival['Transit Time']
+Arrival['buses_needed_per_flight'] = np.ceil(Arrival['Trips_Needed'] / max_trips_A)
 
-    start_time = A["Gate Start Time"].min().floor("D")
-    end_time = A["Gate End Time"].max().replace(hour=23, minute=55)
-    time_index = pd.date_range(start=start_time, end=end_time, freq="5min")
-    A_bus_counts = pd.Series(0, index=time_index)
+start_time = Arrival["Gate Start Time"].min().floor("D")
+end_time = Arrival["Gate End Time"].max().replace(hour=23, minute=55)
+time_index = pd.date_range(start=start_time, end=end_time, freq="5min")
+A_bus_counts = pd.Series(0, index=time_index)
 
-    for _, row in A.iterrows():
+for _, row in Arrival.iterrows():
+    start = row["Gate Start Time"]
+    delta = Arrival_Rollover
+    if row["Trips_Needed"] % 2 == 1:
+        A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
+        A_bus_counts.loc[start:start+(delta/2)] += 1
+    else:
+        A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
+
+# Departure
+Departure = df_Departure
+Departure['Trips_Needed'] = np.ceil(Departure['PAX'] / BUS_CAPACITY)
+Departure['Gate Start Time'] = pd.to_datetime(Departure['Gate Start Time'], format='%d/%m/%Y %H:%M')
+Departure['Gate End Time'] = pd.to_datetime(Departure['Gate End Time'], format='%d/%m/%Y %H:%M')
+Departure['Transit Time'] = pd.to_numeric(Departure['Transit Time'])
+
+max_trips_D = Departure_TimeFrame // Departure['Transit Time']
+Departure['buses_needed_per_flight'] = np.ceil(Departure['Trips_Needed'] / max_trips_D)
+
+D_bus_counts = pd.Series(0, index=time_index)
+for _, row in Departure.iterrows():
+    start = row["Gate End Time"]
+    delta = Departure_Rollover
+    if row["Trips_Needed"] % 2 == 1:
+        D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
+        D_bus_counts.loc[start:start+(delta/2)] += 1
+    else:
+        D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
+
+# Domestic (optional)
+Do_bus_counts = pd.Series(0, index=time_index)
+if 'df_Domestic' in locals():
+    Domestic = df_Domestic
+    Domestic = pd.read_excel(file, sheet_name="Dom Bus Operations")
+    Do_missing = [col for col in ["Transit Time", "PAX", "Gate Start Time", "Gate End Time"] if col not in Domestic.columns]
+    if Do_missing:
+        print(f"Missing columns in Domestic: {', '.join(Do_missing)}")
+
+    Domestic['Trips_Needed'] = np.ceil(Domestic['PAX'] / BUS_CAPACITY)
+    Domestic['Gate Start Time'] = pd.to_datetime(Domestic['Gate Start Time'], format='%d/%m/%Y %H:%M')
+    Domestic['Gate End Time'] = pd.to_datetime(Domestic['Gate End Time'], format='%d/%m/%Y %H:%M')
+    Domestic['Transit Time'] = pd.to_numeric(Domestic['Transit Time'])
+
+    max_trips_Dom = Domestic_TimeFrame // Domestic['Transit Time']
+    Domestic['buses_needed_per_flight'] = np.ceil(Domestic['Trips_Needed'] / max_trips_Dom)
+
+    for _, row in Domestic.iterrows():
         start = row["Gate Start Time"]
-        delta = Arrival_Rollover
+        delta = Domestic_Rollover
         if row["Trips_Needed"] % 2 == 1:
-            A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
-            A_bus_counts.loc[start:start+(delta/2)] += 1
+            Do_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
+            Do_bus_counts.loc[start:start+(delta/2)] += 1
         else:
-            A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
+            Do_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
 
-    # Setup departure dataframe
-    D = df_Departure.copy()
-    D['Trips_Needed'] = np.ceil(D['PAX'] / BUS_CAPACITY)
-    D['Gate Start Time'] = pd.to_datetime(D['Gate Start Time'], errors='coerce')
-    D['Gate End Time'] = pd.to_datetime(D['Gate End Time'], errors='coerce')
-    D['Transit Time'] = pd.to_numeric(D['Transit Time'])
-    max_trips_D = Departure_TimeFrame // D['Transit Time']
-    D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / max_trips_D)
-    D_bus_counts = pd.Series(0, index=time_index)
+# Combine all operations
+df = pd.DataFrame({
+    "Departure": D_bus_counts,
+    "Arrival": A_bus_counts,
+    "Domestic": Do_bus_counts
+})
+df["Total_Buses_Required"] = df.sum(axis=1)
 
-    for _, row in D.iterrows():
-        start = row["Gate End Time"]
-        delta = Departure_Rollover
-        if row["Trips_Needed"] % 2 == 1:
-            D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
-            D_bus_counts.loc[start:start+(delta/2)] += 1
-        else:
-            D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
+# Final Result: Print or export the total number of required buses
+total_buses_needed = int(df["Total_Buses_Required"].max())
+print(f"\nTotal buses required at peak time: {total_buses_needed}")
 
-    # Optional: domestic
-    Do_bus_counts = pd.Series(0, index=time_index)
-    if include_domestic:
-        try:
-            df_Domestic = pd.read_excel(uploaded_schedule, sheet_name="Dom Bus Operations")
-            df_Domestic['Trips_Needed'] = np.ceil(df_Domestic['PAX'] / BUS_CAPACITY)
-            df_Domestic['Gate Start Time'] = pd.to_datetime(df_Domestic['Gate Start Time'])
-            df_Domestic['Transit Time'] = pd.to_numeric(df_Domestic['Transit Time'])
-            max_trips_Dom = Domestic_TimeFrame // df_Domestic['Transit Time']
-            df_Domestic['buses_needed_per_flight'] = np.ceil(df_Domestic['Trips_Needed'] / max_trips_Dom)
-            for _, row in df_Domestic.iterrows():
-                start = row["Gate Start Time"]
-                delta = Domestic_Rollover
-                if row["Trips_Needed"] % 2 == 1:
-                    Do_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
-                    Do_bus_counts.loc[start:start+(delta/2)] += 1
-                else:
-                    Do_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
-        except Exception as e:
-            st.warning(f"Could not load Domestic: {e}")
-
-    # Combine
-    df_result = pd.DataFrame({
-        "Departure": D_bus_counts,
-        "Arrival": A_bus_counts,
-        "Domestic": Do_bus_counts
-    })
-    df_result["Total_Buses_Required"] = df_result.sum(axis=1)
+df.to_excel("Time_Series.xlsx", index=False)
 
     # Output
     peak = int(df_result["Total_Buses_Required"].max())
