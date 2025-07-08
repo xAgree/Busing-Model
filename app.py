@@ -63,75 +63,77 @@ if uploaded_schedule and uploaded_pax_db:
 
     df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]], 
                               left_on="Flight No.", right_on="Row Labels", 
-                              how="left")
-    df_Arrival = df_Arrival.drop(columns="Row Labels")
-    df_Arrival = df_Arrival.rename(columns={"Total Pax": "PAX"})
+                              how="left").drop(columns="Row Labels").rename(columns={"Total Pax": "PAX"})
 
     df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]], 
                               left_on="Flight No.", right_on="Row Labels", 
-                              how="left")
-    df_Departure = df_Departure.drop(columns="Row Labels")
-    df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
+                              how="left").drop(columns="Row Labels").rename(columns={"Total Pax": "PAX"})
 
     # Setup arrival dataframe
-    A = df_Arrival
+    A = df_Arrival.copy()
     A['Trips_Needed'] = np.ceil(A['PAX'] / BUS_CAPACITY)
     A['Gate Start Time'] = pd.to_datetime(A['Gate Start Time'], errors='coerce')
     A['Gate End Time'] = pd.to_datetime(A['Gate End Time'], errors='coerce')
     A['Transit Time'] = pd.to_numeric(A['Transit Time'])
-    
     max_trips_A = Arrival_TimeFrame // A['Transit Time']
     A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / max_trips_A)
 
-    start_time = A["Gate Start Time"].min().floor("D")
-    end_time = A["Gate End Time"].max().replace(hour=23, minute=55)
-    time_index = pd.date_range(start=start_time, end=end_time, freq="5min")
-    A_bus_counts = pd.Series(0, index=time_index)
-
-    for _, row in A.iterrows():
-        start = row["Gate Start Time"]
-        delta = Arrival_Rollover
-        if row["Trips_Needed"] % 2 == 1:
-            A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
-            A_bus_counts.loc[start:start+(delta/2)] += 1
-        else:
-            A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
-
     # Setup departure dataframe
-    D = df_Departure
+    D = df_Departure.copy()
     D['Trips_Needed'] = np.ceil(D['PAX'] / BUS_CAPACITY)
     D['Gate Start Time'] = pd.to_datetime(D['Gate Start Time'], errors='coerce')
     D['Gate End Time'] = pd.to_datetime(D['Gate End Time'], errors='coerce')
     D['Transit Time'] = pd.to_numeric(D['Transit Time'])
-    
     max_trips_D = Departure_TimeFrame // D['Transit Time']
     D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / max_trips_D)
 
+    # Combined time index
+    start_time = min(A["Gate Start Time"].min(), D["Gate Start Time"].min()).floor("D")
+    end_time = max(A["Gate End Time"].max(), D["Gate End Time"].max()).replace(hour=23, minute=55)
+    time_index = pd.date_range(start=start_time, end=end_time, freq="5min")
+
+    # Arrival bus counts
+    A_bus_counts = pd.Series(0, index=time_index)
+    for _, row in A.iterrows():
+        start = row["Gate Start Time"]
+        if pd.isna(start):
+            continue
+        delta = Arrival_Rollover
+        A_bus_counts.loc[start:start+delta] += (
+            row["buses_needed_per_flight"] - 1 if row["Trips_Needed"] % 2 == 1 else row["buses_needed_per_flight"]
+        )
+        if row["Trips_Needed"] % 2 == 1:
+            A_bus_counts.loc[start:start+(delta/2)] += 1
+
+    # Departure bus counts (patched version)
     def round_to_nearest_5min(dt):
-        # Round down to nearest 5 minutes
-        return dt.floor('5T')
+        return dt.floor("5T")
 
     def ceil_to_nearest_5min(dt):
-        # Round up to nearest 5 minutes
-        return (dt + pd.Timedelta(minutes=4, seconds=59)).floor('5T')
-    
+        return (dt + pd.Timedelta(minutes=4, seconds=59)).floor("5T")
+
     D_bus_counts = pd.Series(0, index=time_index)
+    nonzero_found = False
     for _, row in D.iterrows():
         start = row["Gate End Time"]
         if pd.isna(start):
             continue
-
-        delta = Departure_Rollover
-
         start_rounded = round_to_nearest_5min(start)
-        end_rounded = ceil_to_nearest_5min(start + delta)
-        mid_rounded = ceil_to_nearest_5min(start + (delta / 2))
-
+        end_rounded = ceil_to_nearest_5min(start + Departure_Rollover)
+        mid_rounded = ceil_to_nearest_5min(start + (Departure_Rollover / 2))
+        if start_rounded not in D_bus_counts.index or end_rounded not in D_bus_counts.index:
+            st.warning(f"⚠️ Skipping: {start_rounded} to {end_rounded} not in time_index")
+            continue
+        buses = row["buses_needed_per_flight"]
         if row["Trips_Needed"] % 2 == 1:
-            D_bus_counts.loc[start_rounded:end_rounded] += row["buses_needed_per_flight"] - 1
+            D_bus_counts.loc[start_rounded:end_rounded] += buses - 1
             D_bus_counts.loc[start_rounded:mid_rounded] += 1
         else:
-            D_bus_counts.loc[start_rounded:end_rounded] += row["buses_needed_per_flight"]
+            D_bus_counts.loc[start_rounded:end_rounded] += buses
+        nonzero_found = True
+
+    if not nonzero_found:
+        st.error("🚫 No departure buses counted — check time alignment or PAX values.")
 
     # Optional: domestic
     Do_bus_counts = pd.Series(0, index=time_index)
@@ -146,6 +148,8 @@ if uploaded_schedule and uploaded_pax_db:
             for _, row in df_Domestic.iterrows():
                 start = row["Gate Start Time"]
                 delta = Domestic_Rollover
+                if pd.isna(start):
+                    continue
                 if row["Trips_Needed"] % 2 == 1:
                     Do_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
                     Do_bus_counts.loc[start:start+(delta/2)] += 1
@@ -154,20 +158,11 @@ if uploaded_schedule and uploaded_pax_db:
         except Exception as e:
             st.warning(f"Could not load Domestic: {e}")
 
-    st.write("Departure DataFrame Preview", D.head())
-    st.write("Departure Rows count:", len(D))
-
-    st.write("Departure DataFrame Preview counts", D_bus_counts.head())
-    st.write("Departure Rows count:", sum(D_bus_counts))
-
-    st.write("Sum of D_bus_counts:", D_bus_counts.sum())
-    st.write("Non-zero values in D_bus_counts:", D_bus_counts[D_bus_counts > 0].head(10))
-    
     # Combine
     df = pd.DataFrame({
-    "Departure": D_bus_counts,
-    "Arrival": A_bus_counts,
-    "Domestic": Do_bus_counts
+        "Departure": D_bus_counts,
+        "Arrival": A_bus_counts,
+        "Domestic": Do_bus_counts
     })
     df["Total_Buses_Required"] = df.sum(axis=1)
 
@@ -191,13 +186,6 @@ if uploaded_schedule and uploaded_pax_db:
     plt.tight_layout()
     st.pyplot(fig)
 
-    
-
-if uploaded_schedule and uploaded_pax_db:
-    # ... your existing processing code ...
-    
-    # Combine into df and calculate peak, plot, etc.
-    
     # Export DataFrame to Excel in memory
     excel_buffer = BytesIO()
     df.to_excel(excel_buffer, index=True, engine='openpyxl')
@@ -210,5 +198,3 @@ if uploaded_schedule and uploaded_pax_db:
         file_name="Time_Series.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-
