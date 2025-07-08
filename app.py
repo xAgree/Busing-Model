@@ -147,13 +147,13 @@ if uploaded_schedule and uploaded_pax_db:
     df["Total_Buses_Required"] = df.sum(axis=1)
 
     # Output
-    peak = int(df_result["Total_Buses_Required"].max())
+    peak = int(df["Total_Buses_Required"].max())
     st.success(f"✅ **Peak buses required:** {peak}")
 
     # Plot
     st.subheader("Bus Requirement Timeline")
     fig, ax = plt.subplots(figsize=(14, 6))
-    df_result[["Departure", "Arrival", "Domestic"]].plot(
+    df[["Departure", "Arrival", "Domestic"]].plot(
         kind="bar", stacked=True, ax=ax,
         color=["#1f77b4", "#ff7f0e", "#089404"], width=1
     )
