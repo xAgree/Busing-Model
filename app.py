@@ -138,8 +138,8 @@ if uploaded_schedule and uploaded_pax_db:
         except Exception as e:
             st.warning(f"Could not load Domestic: {e}")
 
-st.write("Departure DataFrame Preview", df_Departure.head())
-st.write("Departure Rows count:", len(df_Departure))
+    st.write("Departure DataFrame Preview", df_Departure.head())
+    st.write("Departure Rows count:", len(df_Departure))
     
     # Combine
     df = pd.DataFrame({
