@@ -118,15 +118,20 @@ if uploaded_schedule and uploaded_pax_db:
     D_bus_counts = pd.Series(0, index=time_index)
     for _, row in D.iterrows():
         start = row["Gate End Time"]
+        if pd.isna(start):
+            continue
+
         delta = Departure_Rollover
+
         start_rounded = round_to_nearest_5min(start)
         end_rounded = ceil_to_nearest_5min(start + delta)
         mid_rounded = ceil_to_nearest_5min(start + (delta / 2))
+
         if row["Trips_Needed"] % 2 == 1:
-            D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
-            D_bus_counts.loc[start:start+(delta/2)] += 1
+            D_bus_counts.loc[start_rounded:end_rounded] += row["buses_needed_per_flight"] - 1
+            D_bus_counts.loc[start_rounded:mid_rounded] += 1
         else:
-            D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
+            D_bus_counts.loc[start_rounded:end_rounded] += row["buses_needed_per_flight"]
 
     # Optional: domestic
     Do_bus_counts = pd.Series(0, index=time_index)
