@@ -109,7 +109,7 @@ if uploaded_schedule and uploaded_pax_db:
     
     D_bus_counts = pd.Series(0, index=time_index)
     for _, row in D.iterrows():
-        start = row["Gate Start Time"]
+        start = row["Gate End Time"]
         delta = Departure_Rollover
         if row["Trips_Needed"] % 2 == 1:
             D_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"] - 1
@@ -140,6 +140,9 @@ if uploaded_schedule and uploaded_pax_db:
 
     st.write("Departure DataFrame Preview", D.head())
     st.write("Departure Rows count:", len(D))
+
+    st.write("Departure DataFrame Preview counts", D_bus_counts.head())
+    st.write("Departure Rows count:", len(D_bus_counts))
     
     # Combine
     df = pd.DataFrame({
