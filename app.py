@@ -29,13 +29,17 @@ if uploaded_schedule and uploaded_pax_db:
     df = pd.read_excel(uploaded_schedule, header=1)
     PDB = pd.read_excel(uploaded_pax_db)
 
-    df_Arrival = df[["Flight No.", "Gate Start Time", "Gate End Time", "Stand", "Terminal", "Seats"]]
-    df_Departure = df[["Flight No..1", "Gate Start Time.1", "Gate End Time.1", "Stand.1", "Terminal.1", "Seats.1"]]
-    df_Departure = df_Departure.rename(columns={
-        "Flight No..1": "Flight No.", "Gate Start Time.1": "Gate Start Time", 
-        "Gate End Time.1": "Gate End Time", "Stand.1": "Stand", 
-        "Terminal.1": "Terminal", "Seats.1": "Seats"
-    })
+    df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+    df_Arrival = df_Arrival.drop(columns="Row Labels")
+    df_Arrival = df_Arrival.rename(columns={"Total Pax": "PAX"})
+
+    df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+    df_Departure = df_Departure.drop(columns="Row Labels")
+    df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
 
     def insert_zeros(flight_no):
         if isinstance(flight_no, str):
