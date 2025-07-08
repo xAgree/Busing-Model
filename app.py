@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from io import BytesIO
 
 # Constants
 BUS_CAPACITY = 60
@@ -163,7 +164,7 @@ if uploaded_schedule and uploaded_pax_db:
     plt.tight_layout()
     st.pyplot(fig)
 
-    from io import BytesIO
+    
 
 # Export DataFrame to Excel in memory
 excel_buffer = BytesIO()
