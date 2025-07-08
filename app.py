@@ -168,16 +168,22 @@ if uploaded_schedule and uploaded_pax_db:
 
     
 
-# Export DataFrame to Excel in memory
-excel_buffer = BytesIO()
-df.to_excel(excel_buffer, index=True, engine='openpyxl')
-excel_buffer.seek(0)
+if uploaded_schedule and uploaded_pax_db:
+    # ... your existing processing code ...
+    
+    # Combine into df and calculate peak, plot, etc.
+    
+    # Export DataFrame to Excel in memory
+    excel_buffer = BytesIO()
+    df.to_excel(excel_buffer, index=True, engine='openpyxl')
+    excel_buffer.seek(0)
 
-# Create download button
-st.download_button(
-    label="📥 Download Time Series Excel",
-    data=excel_buffer,
-    file_name="Time_Series.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+    # Create download button
+    st.download_button(
+        label="📥 Download Time Series Excel",
+        data=excel_buffer,
+        file_name="Time_Series.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
 
