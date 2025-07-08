@@ -159,6 +159,9 @@ if uploaded_schedule and uploaded_pax_db:
 
     st.write("Departure DataFrame Preview counts", D_bus_counts.head())
     st.write("Departure Rows count:", sum(D_bus_counts))
+
+    st.write("Sum of D_bus_counts:", D_bus_counts.sum())
+    st.write("Non-zero values in D_bus_counts:", D_bus_counts[D_bus_counts > 0].head(10))
     
     # Combine
     df = pd.DataFrame({
