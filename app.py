@@ -78,8 +78,8 @@ if uploaded_schedule and uploaded_pax_db:
     A['Gate Start Time'] = pd.to_datetime(A['Gate Start Time'], errors='coerce')
     A['Gate End Time'] = pd.to_datetime(A['Gate End Time'], errors='coerce')
     A['Transit Time'] = pd.to_numeric(A['Transit Time'])
-    max_trips_A = Arrival_TimeFrame // A['Transit Time']
-    A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / max_trips_A)
+    A['max_trips'] = Arrival_TimeFrame // A['Transit Time']
+    A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / A['max_trips'])
 
     start_time = A["Gate Start Time"].min().floor("D")
     end_time = A["Gate End Time"].max().replace(hour=23, minute=55)
@@ -101,8 +101,8 @@ if uploaded_schedule and uploaded_pax_db:
     D['Gate Start Time'] = pd.to_datetime(D['Gate Start Time'], errors='coerce')
     D['Gate End Time'] = pd.to_datetime(D['Gate End Time'], errors='coerce')
     D['Transit Time'] = pd.to_numeric(D['Transit Time'])
-    max_trips_D = Departure_TimeFrame // D['Transit Time']
-    D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / max_trips_D)
+    D['max_trips'] = Departure_TimeFrame // D['Transit Time']
+    D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / D['max_trips'])
     D_bus_counts = pd.Series(0, index=time_index)
 
     for _, row in D.iterrows():
@@ -122,8 +122,8 @@ if uploaded_schedule and uploaded_pax_db:
             df_Domestic['Trips_Needed'] = np.ceil(df_Domestic['PAX'] / BUS_CAPACITY)
             df_Domestic['Gate Start Time'] = pd.to_datetime(df_Domestic['Gate Start Time'])
             df_Domestic['Transit Time'] = pd.to_numeric(df_Domestic['Transit Time'])
-            max_trips_Dom = Domestic_TimeFrame // df_Domestic['Transit Time']
-            df_Domestic['buses_needed_per_flight'] = np.ceil(df_Domestic['Trips_Needed'] / max_trips_Dom)
+            df_Domestic['max_trips'] = Domestic_TimeFrame // df_Domestic['Transit Time']
+            df_Domestic['buses_needed_per_flight'] = np.ceil(df_Domestic['Trips_Needed'] / df_Domestic['max_trips'])
             for _, row in df_Domestic.iterrows():
                 start = row["Gate Start Time"]
                 delta = Domestic_Rollover
