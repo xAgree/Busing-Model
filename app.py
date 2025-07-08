@@ -29,17 +29,13 @@ if uploaded_schedule and uploaded_pax_db:
     df = pd.read_excel(uploaded_schedule, header=1)
     PDB = pd.read_excel(uploaded_pax_db)
 
-    df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]], 
-                              left_on="Flight No.", right_on="Row Labels", 
-                              how="left")
-    df_Arrival = df_Arrival.drop(columns="Row Labels")
-    df_Arrival = df_Arrival.rename(columns={"Total Pax": "PAX"})
-
-    df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]], 
-                              left_on="Flight No.", right_on="Row Labels", 
-                              how="left")
-    df_Departure = df_Departure.drop(columns="Row Labels")
-    df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
+    df_Arrival = df[["Flight No.", "Gate Start Time", "Gate End Time", "Stand", "Terminal", "Seats"]]
+    df_Departure = df[["Flight No..1", "Gate Start Time.1", "Gate End Time.1", "Stand.1", "Terminal.1", "Seats.1"]]
+    df_Departure = df_Departure.rename(columns={
+        "Flight No..1": "Flight No.", "Gate Start Time.1": "Gate Start Time", 
+        "Gate End Time.1": "Gate End Time", "Stand.1": "Stand", 
+        "Terminal.1": "Terminal", "Seats.1": "Seats"
+    })
 
     def insert_zeros(flight_no):
         if isinstance(flight_no, str):
@@ -64,12 +60,17 @@ if uploaded_schedule and uploaded_pax_db:
     # Transit and Pax merge
     df_Departure["Transit Time"] = df_Arrival["Transit Time"] = 21.7
 
-    for data in [df_Arrival, df_Departure]:
-        data["Flight No."] = data["Flight No."].astype(str)
-        data.merge(PDB[["Row Labels", "Total Pax"]], 
-                   left_on="Flight No.", right_on="Row Labels", how="left")
-        data.drop(columns="Row Labels", errors='ignore', inplace=True)
-        data.rename(columns={"Total Pax": "PAX"}, inplace=True)
+    df_Arrival = df_Arrival.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+    df_Arrival = df_Arrival.drop(columns="Row Labels")
+    df_Arrival = df_Arrival.rename(columns={"Total Pax": "PAX"})
+
+    df_Departure = df_Departure.merge(PDB[["Row Labels", "Total Pax"]], 
+                              left_on="Flight No.", right_on="Row Labels", 
+                              how="left")
+    df_Departure = df_Departure.drop(columns="Row Labels")
+    df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
 
     # Setup arrival dataframe
     A = df_Arrival.copy()
