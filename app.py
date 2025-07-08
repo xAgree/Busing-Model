@@ -163,10 +163,18 @@ if uploaded_schedule and uploaded_pax_db:
     plt.tight_layout()
     st.pyplot(fig)
 
-    # Option to download
-    st.download_button(
-        "Download Time Series Excel",
-        data=df_result.to_excel(index=True),
-        file_name="Time_Series.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    from io import BytesIO
+
+# Export DataFrame to Excel in memory
+excel_buffer = BytesIO()
+df_result.to_excel(excel_buffer, index=True, engine='openpyxl')
+excel_buffer.seek(0)
+
+# Create download button
+st.download_button(
+    label="📥 Download Time Series Excel",
+    data=excel_buffer,
+    file_name="Time_Series.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
