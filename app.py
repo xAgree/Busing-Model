@@ -142,7 +142,7 @@ if uploaded_schedule and uploaded_pax_db:
     st.write("Departure Rows count:", len(D))
 
     st.write("Departure DataFrame Preview counts", D_bus_counts.head())
-    st.write("Departure Rows count:", Sum(D_bus_counts))
+    st.write("Departure Rows count:", sum(D_bus_counts))
     
     # Combine
     df = pd.DataFrame({
