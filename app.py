@@ -74,13 +74,14 @@ if uploaded_schedule and uploaded_pax_db:
     df_Departure = df_Departure.rename(columns={"Total Pax": "PAX"})
 
     # Setup arrival dataframe
-    A = df_Arrival.copy()
+    A = df_Arrival
     A['Trips_Needed'] = np.ceil(A['PAX'] / BUS_CAPACITY)
     A['Gate Start Time'] = pd.to_datetime(A['Gate Start Time'], errors='coerce')
     A['Gate End Time'] = pd.to_datetime(A['Gate End Time'], errors='coerce')
     A['Transit Time'] = pd.to_numeric(A['Transit Time'])
-    A['max_trips'] = Arrival_TimeFrame // A['Transit Time']
-    A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / A['max_trips'])
+    
+    max_trips_A = Arrival_TimeFrame // A['Transit Time']
+    A['buses_needed_per_flight'] = np.ceil(A['Trips_Needed'] / max_trips_A)
 
     start_time = A["Gate Start Time"].min().floor("D")
     end_time = A["Gate End Time"].max().replace(hour=23, minute=55)
@@ -97,15 +98,16 @@ if uploaded_schedule and uploaded_pax_db:
             A_bus_counts.loc[start:start+delta] += row["buses_needed_per_flight"]
 
     # Setup departure dataframe
-    D = df_Departure.copy()
+    D = df_Departure
     D['Trips_Needed'] = np.ceil(D['PAX'] / BUS_CAPACITY)
     D['Gate Start Time'] = pd.to_datetime(D['Gate Start Time'], errors='coerce')
     D['Gate End Time'] = pd.to_datetime(D['Gate End Time'], errors='coerce')
     D['Transit Time'] = pd.to_numeric(D['Transit Time'])
-    D['max_trips'] = Departure_TimeFrame // D['Transit Time']
-    D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / D['max_trips'])
+    
+    max_trips_D = Departure_TimeFrame // D['Transit Time']
+    D['buses_needed_per_flight'] = np.ceil(D['Trips_Needed'] / max_trips_D)
+    
     D_bus_counts = pd.Series(0, index=time_index)
-
     for _, row in D.iterrows():
         start = row["Gate End Time"]
         delta = Departure_Rollover
@@ -137,12 +139,12 @@ if uploaded_schedule and uploaded_pax_db:
             st.warning(f"Could not load Domestic: {e}")
 
     # Combine
-    df_result = pd.DataFrame({
-        "Departure": D_bus_counts,
-        "Arrival": A_bus_counts,
-        "Domestic": Do_bus_counts
+    df = pd.DataFrame({
+    "Departure": D_bus_counts,
+    "Arrival": A_bus_counts,
+    "Domestic": Do_bus_counts
     })
-    df_result["Total_Buses_Required"] = df_result.sum(axis=1)
+    df["Total_Buses_Required"] = df.sum(axis=1)
 
     # Output
     peak = int(df_result["Total_Buses_Required"].max())
@@ -168,7 +170,7 @@ if uploaded_schedule and uploaded_pax_db:
 
 # Export DataFrame to Excel in memory
 excel_buffer = BytesIO()
-df_result.to_excel(excel_buffer, index=True, engine='openpyxl')
+df.to_excel(excel_buffer, index=True, engine='openpyxl')
 excel_buffer.seek(0)
 
 # Create download button
